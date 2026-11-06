@@ -1,0 +1,45 @@
+name: build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: xcodebuild -version && xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Compile metallib
+        run: |
+          set -eo pipefail
+          xcrun -sdk iphoneos metal -c shader/glass.metal -o /tmp/glass.air
+          xcrun -sdk iphoneos metallib /tmp/glass.air -o default.metallib
+          ls -l default.metallib
+
+      - name: Compile dylib (arm64 + arm64e)
+        run: |
+          set -eo pipefail
+          SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
+          for ARCH in arm64 arm64e; do
+            xcrun --sdk iphoneos clang -fobjc-arc -O2 -isysroot "$SDK" \
+              -target ${ARCH}-apple-ios15.0 -dynamiclib \
+              -framework UIKit -framework Metal -framework MetalKit \
+              -framework QuartzCore -framework Foundation \
+              -Wl,-install_name,@loader_path/LGGlassClear.dylib \
+              -o LGGlassClear-${ARCH}.dylib src/LGGlassClear.mm
+          done
+          xcrun lipo -create -output LGGlassClear.dylib LGGlassClear-arm64.dylib LGGlassClear-arm64e.dylib
+          xcrun codesign --force --sign - LGGlassClear.dylib
+          xcrun lipo -info LGGlassClear.dylib
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: lgglassclear
+          path: |
+            LGGlassClear.dylib
+            default.metallib
+          if-no-files-found: error
