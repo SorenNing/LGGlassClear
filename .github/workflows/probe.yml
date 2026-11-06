@@ -1,0 +1,12 @@
+name: probe
+on:
+  workflow_dispatch:
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "linux runner ok"
+  macos:
+    runs-on: macos-14
+    steps:
+      - run: echo "macos runner ok"
